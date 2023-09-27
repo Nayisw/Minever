@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Configuration 
+ram="1G"
+aikar_jvm_flags="-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -XX:-UseBiasedLocking -XX:UseAVX=3 -XX:+UseStringDeduplication -XX:+UseFastUnorderedTimeStamps -XX:+UseAES -XX:+UseAESIntrinsics -XX:UseSSE=4 -XX:+UseFMA -XX:AllocatePrefetchStyle=1 -XX:+UseLoopPredicate -XX:+RangeCheckElimination -XX:+EliminateLocks -XX:+DoEscapeAnalysis -XX:+UseCodeCacheFlushing -XX:+SegmentedCodeCache -XX:+UseFastJNIAccessors -XX:+OptimizeStringConcat -XX:+UseCompressedOops -XX:+UseThreadPriorities -XX:+OmitStackTraceInFastThrow -XX:+TrustFinalNonStaticFields -XX:ThreadPriorityPolicy=1 -XX:+UseInlineCaches -XX:+RewriteBytecodes -XX:+RewriteFrequentPairs -XX:+UseNUMA -XX:-DontCompileHugeMethods -XX:+UseFPUForSpilling -XX:+UseFastStosb -XX:+UseNewLongLShift -XX:+UseVectorCmov -XX:+UseXMMForArrayCopy -XX:+UseXmmI2D -XX:+UseXmmI2F -XX:+UseXmmLoadAndClearUpper -XX:+UseXmmRegToRegMoveAll -Dfile.encoding=UTF-8 -Xlog:async -Djava.security.egd=file:/dev/urandom --add-modules jdk.incubator.vector"
+# aikar_jvm_flags="-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=1 -XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=1 -XX:G1MaxNewSizePercent=1 -XX:G1HeapRegionSize=1M -XX:G1ReservePercent=1 -XX:G1HeapWastePercent=1 -XX:G1MixedGCCountTarget=1 -XX:InitiatingHeapOccupancyPercent=1 -XX:G1MixedGCLiveThresholdPercent=1 -XX:G1RSetUpdatingPauseTimePercent=1 -XX:SurvivorRatio=1 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -XX:-UseBiasedLocking -XX:UseAVX=1 -XX:+UseStringDeduplication -XX:+UseFastUnorderedTimeStamps -XX:+UseAES -XX:+UseAESIntrinsics -XX:UseSSE=1 -XX:+UseFMA -XX:AllocatePrefetchStyle=1 -XX:+UseLoopPredicate -XX:+RangeCheckElimination -XX:+EliminateLocks -XX:+DoEscapeAnalysis -XX:+UseCodeCacheFlushing -XX:+SegmentedCodeCache -XX:+UseFastJNIAccessors -XX:+OptimizeStringConcat -XX:+UseCompressedOops -XX:+UseThreadPriorities -XX:+OmitStackTraceInFastThrow -XX:+TrustFinalNonStaticFields -XX:ThreadPriorityPolicy=1 -XX:+UseInlineCaches -XX:+RewriteBytecodes -XX:+RewriteFrequentPairs -XX:+UseNUMA -XX:-DontCompileHugeMethods -XX:+UseFPUForSpilling -XX:+UseFastStosb -XX:+UseNewLongLShift -XX:+UseVectorCmov -XX:+UseXMMForArrayCopy -XX:+UseXmmI1D -XX:+UseXmmI1F -XX:+UseXmmLoadAndClearUpper -XX:+UseXmmRegToRegMoveAll -Dfile.encoding=UTF-1 -Xlog:async -Djava.security.egd=file:/dev/urandom --add-modules jdk.incubator.vector"
+server_name="server"
+jar="start.jar"
+
+# Function to display a message box with an OK button
+show_message() {
+    message="$1"
+    whiptail --title "Minever" --msgbox "$message" 15 60
+}
+
+server_dependencies() {
+    if ! command -v screen &>/dev/null; then
+        echo -e "\e[33mInstalling dependencies...Please Wait!\e[0m"
+        sudo apt update -qq >/dev/null 2>&1
+        sudo apt install -qq screen -y >/dev/null 2>&1
+        echo -e "\e[32mDependencies Installed!\e[0m"
+    fi
+
+    if ! command -v java &>/dev/null || ! dpkg -l | grep -q 'openjdk.*-jre-headless'; then
+        echo -e "\e[33mInstalling java...Please Wait!\e[0m"
+        sudo apt install openjdk-17-jre-headless -y -qq
+        echo -e "\e[32mDependencies Installed!\e[0m"
+    fi
+
+}
+server_dependencies
+
+# Function to start the Minecraft server
+start_server() {
+    if [ ! -d $PWD/server ]; then 
+        show_message "Server not installed!\nInstall a server to continue"
+    else
+    
+        screen -S afk -d -m bpytop
+        screen -S ip -d -m "$PWD/script/ngrok" tcp 25565
+    
+        cd $PWD/server
+  
+        show_message "Starting Minecraft server..."
+        screen -S server -d -m java -Xms${ram} -Xmx${ram} ${aikar_jvm_flags} -jar ${jar} nogui
+        screen -r server
+        exec > >(tee -i "$PWD/../script.log") 2>&1
+    fi
+}
+stop_server() {
+    if screen -list | grep -q "Detached"; then
+        if whiptail --yesno "Are you sure you want to terminate all screen sessions?" 15 60; then
+            killall screen
+            rm $PWD/script.log
+            show_message "All screen sessions have been terminated."
+            exit 0
+        else
+            exit 1
+        fi
+    else
+        
+        rm $PWD/script.log
+        show_message "No active screen sessions found"
+        exit 1
+    fi
+}

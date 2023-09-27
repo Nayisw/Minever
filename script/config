@@ -1,0 +1,167 @@
+#!/bin/bash
+ file="$PWD/script/start"
+ram() {
+   
+
+    options=()
+    for ((i = 1; i <= 20; i++)); do
+        options+=("$i" "GB")
+    done
+    ram=$(whiptail --title "RAM Configuration" --menu "Select RAM (1-20)" 20 40 10 "${options[@]}" 3>&1 1>&2 2>&3)
+    if [ $? -eq 0 ] && [[ "$ram" =~ ^[1-9][0-9]*$ ]] && [ "$ram" -ge 1 ] && [ "$ram" -le 20 ]; then
+        line=4
+        sed -i "${line}s/[0-9]\+/${ram}/g" "$file"
+        echo -e "\e[33mRAM set to ${ram}G!\e[0m"
+        whiptail --msgbox "RAM set to ${ram}G" 10 60
+        if [ "$ram" -ge 1 ] && [ "$ram" -le 12 ]; then
+            line=5
+            if sed -n "${line}p" "$file" | grep -qE "^\s*#"; then
+                sed -i "${line}s/^\s*#//g" "$file"
+                line=6
+                sed -i "${line}s/^/#/g" "$file"
+            fi
+        elif [ "$ram" -ge 13 ] && [ "$ram" -le 20 ]; then
+            line=6
+            if sed -n "${line}p" "$file" | grep -qE "^\s*#"; then
+                sed -i "${line}s/^\s*#//g" "$file"
+                line=5
+                sed -i "${line}s/^/#/g" "$file"
+            fi
+        fi
+    else
+        whiptail --msgbox "Invalid input. RAM must be a positive integer between 1 and 20." 10 60
+        echo -e "\e[33mInvalid input. Please enter a positive integer.\e[0m"
+        line=6
+        sed -i "${line}s/[0-9]\+/1/g" "$file"
+    fi
+}
+
+region() {
+
+    if [ ! -f "$PWD/script/ngrok" ]; then
+        whiptail --msgbox "No Ngrok Installation found!\nInstall Ngrok to continue" 10 60
+    else
+        options=("ap" "Asia/Pacific (Singapore)" "eu" "Australia (Sydney)" "in" "India (Mumbai)" "jp" "Japan (Tokyo)" "sa" "South America (São Paulo)" "us" "United States (Ohio)")
+        region=$(whiptail --title "Ngrok Region Configuration" --menu "Select an region closest to you:" 20 78 10 "${options[@]}" 3>&1 1>&2 2>&3)
+        line=40
+        if [ $? -eq 0 ] && [ -n "$region" ]; then
+            sed -i "${line}s/tcp -region=[a-zA-Z]\+/tcp/g" "$file" 
+            sed -i "${line}s/tcp/tcp -region=$region/g" "$file"
+            echo -e "\e[32mYour Region has been changed!\e[0m"
+            whiptail --msgbox "Ngrok region set to $region" 10 60
+        else
+            sed -i "${line}s/tcp -region=[a-zA-Z]\+/tcp/g" "$file"
+            echo -e "\e[33mRegion has been reset to its Default value.\e[0m"
+            whiptail --msgbox "Invalid input. Ngrok region cannot be empty." 10 60
+        fi
+    fi
+}
+
+javaconfig() {
+    java_version=$(whiptail --title "Java Configuration" --menu "Select Java version:" 20 78 10 \
+        "Java-17" "All Minecraft versions (Default)" \
+        "Java-11" "Minecraft versions 1.17 and above" \
+        "Java-8" "Minecraft versions 1.16 and below" \
+        "Uninstall Java" "" 3>&1 1>&2 2>&3)
+
+    case "$java_version" in
+    "Java-17" | "Java-11" | "Java-8")
+        install_java "${java_version#Java-}"
+        ;;
+    "Uninstall Java")
+        uninstall_java
+        ;;
+    *)
+        whiptail --msgbox "Invalid Java version selection." 10 60
+        exit 0
+        ;;
+    esac
+}
+
+reinstall() {
+    . script/control
+    install
+}
+
+uninstall_server() {
+    if whiptail --title="Uninstallation" --yesno "Are you sure?" 15 60; then
+        rm -rf "$PWD/server"
+    else
+        whiptail --title "Uninstallation" --msgbox="Uninstallation cancelled!"
+        ./Minever
+    fi
+}
+
+install_java() {
+    local version="$1"
+    echo -e "\e[33m Installing Java-$version...\e[0m"
+
+    if ! command -v java &>/dev/null; then
+        sudo apt install "openjdk-$version-jre-headless" -qq -y >/dev/null 2>&1
+        whiptail --msgbox "Java-$version has been installed!" 10 60
+    else
+        whiptail --msgbox "Java-$version installed (or already installed)" 10 60
+    fi
+}
+
+uninstall_java() {
+    local versions=("8" "11" "17")  # Add more versions if needed
+
+    for version in "${versions[@]}"; do
+        if command -v java &>/dev/null; then
+            echo -e "\e[33m Uninstalling Java $version...\e[0m"
+            sudo apt remove --purge "openjdk-$version-jre-headless" -qq -y >/dev/null 2>&1
+        fi
+    done
+
+    whiptail --msgbox "Java has been Uninstalled!" 10 60
+}
+
+config() {
+    choice=$(whiptail --title "Configuration Menu" --menu "Select what you want to configure:" 20 78 10 \
+        "RAM Configuration" "" \
+        "Ngrok Region Configuration" "" \
+        "Java Configuration" "" \
+        "Reinstall Server" "" \
+        "Uninstall Server" "" \
+        "Back" "" 3>&1 1>&2 2>&3)
+
+    if [ $? -ne 0 ]; then
+        # User canceled or closed the dialog
+        echo "Exited Configuration."
+        ./Minever
+    fi
+
+    case $choice in
+    "RAM Configuration")
+        ram
+        ;;
+
+    "Ngrok Region Configuration")
+        region
+        ;;
+
+    "Java Configuration")
+        javaconfig
+        ;;
+
+    "Reinstall Server")
+        reinstall
+        ;;
+
+    "Uninstall Server")
+        uninstall_server
+        ;;
+
+    "Back")
+        echo "Exited Configuration."
+        ./Minever
+        ;;
+
+    *)
+        whiptail --msgbox "Invalid choice." 10 60
+        ;;
+    esac
+}
+
+

@@ -1,0 +1,166 @@
+#!/bin/bash
+
+# Function to display a message box with an OK button
+show_message() {
+    message="$1"
+    whiptail --title "Minever" --msgbox "$message" 15 60
+}
+
+# Function to display a message box for user input
+input_text() {
+    title="$1"
+    prompt="$2"
+    result=$(whiptail --title "$title" --inputbox "$prompt" 15 60 2>&1 >/dev/tty)
+    echo "$result"
+}
+
+# Function to install Vanilla Minecraft
+install_vanilla() {
+    MC_VERSION=$(input_text "Vanilla Minecraft Installation" "Enter a Minecraft version (Press Enter to select the latest):")
+
+    if [ -z "$MC_VERSION" ]; then
+        LATEST_VER=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release')
+        MC_VERSION="$LATEST_VER"
+    fi
+
+    VER_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq --arg VERSION "$MC_VERSION" -r '.versions | .[] | select(.id == $VERSION) | .url')
+
+    if [ -z "$VER_URL" ]; then
+        show_message "Invalid Minecraft version: $MC_VERSION"
+        exit
+    fi
+
+    DOWNLOAD_URL=$(curl -sSL "$VER_URL" | jq -r '.downloads.server.url')
+
+    mkdir -p "$PWD/server" && cd "$PWD/server"
+    curl -o start.jar "$DOWNLOAD_URL"
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt
+
+    show_message "Vanilla $MC_VERSION downloaded successfully!"
+
+}
+
+# Function to install Paper Minecraft
+install_paper() {
+    MC_VERSION=$(input_text "Paper Minecraft Installation" "Enter a Minecraft version (Press Enter to select the latest):")
+
+    API_URL="https://papermc.io/api/v2/projects/paper"
+
+    if [ -z "$MC_VERSION" ]; then
+        LATEST_VERSION=$(curl -s "${API_URL}" | jq -r '.versions' | jq -r '.[-1]')
+        MC_VERSION="${LATEST_VERSION}"
+        LATEST_BUILD=$(curl -s "${API_URL}/versions/${LATEST_VERSION}" | jq -r '.builds | .[-1]')
+        VERSION="${LATEST_VERSION}-${LATEST_BUILD}"
+        DOWNLOAD_URL="${API_URL}/versions/${LATEST_VERSION}/builds/${LATEST_BUILD}/downloads/paper-${VERSION}.jar"
+    else
+        VER_BUILD=$(curl -s "${API_URL}/versions/${MC_VERSION}" | jq -r '.builds | .[-1]')
+        VERSION="${MC_VERSION}-${VER_BUILD}"
+        DOWNLOAD_URL="${API_URL}/versions/${MC_VERSION}/builds/${VER_BUILD}/downloads/paper-${VERSION}.jar"
+    fi
+
+    mkdir -p "$PWD/server" && cd "$PWD/server"
+    curl -o start.jar -L "${DOWNLOAD_URL}"
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt
+
+    show_message "PaperMC $VERSION downloaded successfully!"
+}
+
+# Function to install Fabric Minecraft
+install_fabric() {
+    MC_VERSION=$(input_text "Fabric Minecraft Installation" "Enter a Minecraft version (Press Enter to select the latest):")
+
+    if [ -z "$MC_VERSION" ]; then
+        MC_VERSION=$(curl -sSL https://meta.fabricmc.net/v2/versions/game | jq -r '.[] | select(.stable==true) | .version' | head -n1)
+    fi
+
+    FABRIC_VERSION=$(curl -sSL https://meta.fabricmc.net/v2/versions/installer | jq -r '.[0].version')
+
+    mkdir -p "$PWD/server" && cd "$PWD/server"
+
+    curl -o FabricInstaller.jar -L "https://maven.fabricmc.net/net/fabricmc/fabric-installer/$FABRIC_VERSION/fabric-installer-$FABRIC_VERSION.jar"
+
+    java -jar FabricInstaller.jar server -mcversion "$MC_VERSION" -downloadMinecraft
+
+    mv fabric-server-launch.jar start.jar
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt
+
+    show_message "Fabric $MC_VERSION Installed!"
+
+}
+
+# Function to install Forge Minecraft
+install_forge() {
+    MC_VERSION=$(input_text "Forge Minecraft Installation" "Enter a Minecraft version (Press Enter to select the latest):")
+
+    if [ -z "$MC_VERSION" ]; then
+        show_message "Minecraft version cannot be empty."
+        exit 1
+    fi
+
+    # Check if jq is installed, and install it if not
+    if ! command -v jq &>/dev/null; then
+        echo "jq is required for this script. Installing..."
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq jq
+    fi
+
+    FORGE_VERSION=$(curl -sSL "https://files.minecraftforge.net/maven/net/minecraftforge/forge/promotions_slim.json" | jq -r --arg MC_VERSION "$MC_VERSION" '.promos[$MC_VERSION]')
+    
+    if [ -z "$FORGE_VERSION" ]; then
+        show_message "No Forge version found for Minecraft $MC_VERSION"
+        exit 1
+    fi
+
+    echo "Downloading Forge version $FORGE_VERSION for Minecraft $MC_VERSION..."
+
+    DOWNLOAD_URL="https://files.minecraftforge.net/maven/net/minecraftforge/forge/$FORGE_VERSION/forge-$FORGE_VERSION-universal.jar"
+
+    mkdir -p "$PWD/server" && cd "$PWD/server"
+    curl -o start.jar -L "$DOWNLOAD_URL"
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt
+
+    show_message "Forge $FORGE_VERSION for Minecraft $MC_VERSION installed successfully!"
+}
+
+# Main menu using Whiptail
+install() {
+    choice=$(whiptail --title "Minever" --menu "Choose an action:" 15 60 5 \
+        "Install Vanilla" "No mods/plugins" \
+        "Install Paper" "only plugins" \
+        "Install Fabric" "only mods" \
+        "Install Forge" "only mods" \
+        "Back" "Go back" 3>&1 1>&2 2>&3)
+
+    if [ $? -ne 0 ]; then
+        show_message "Exited Setup."
+        exit
+    fi
+
+    case "$choice" in
+    "Install Vanilla")
+        install_vanilla
+        ;;
+    "Install Paper")
+        install_paper
+        ;;
+    "Install Fabric")
+        install_fabric
+        ;;
+    "Install Forge")
+        install_forge
+        ;;
+    "Back")
+        ./Minever
+        ;;
+    *)
+        show_message "Invalid choice."
+        exit 0
+        ;;
+    esac
+
+    if ! command -v jq &>/dev/null; then
+        echo -e "\e[33mInstalling required dependencies...\e[0m"
+        sudo apt install jq -y >/dev/null 2>&1
+        echo -e "\e[32mDependencies Installed!\e[0m"
+    fi
+}

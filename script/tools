@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Function to display a message box with an OK button
+show_message() {
+    message="$1"
+    whiptail --title "Minever" --msgbox "$message" 15 60
+}
+
+# Function to display a message box for user input
+input_text() {
+    title="$1"
+    prompt="$2"
+    whiptail --title "$title" --inputbox "$prompt" 15 60 2> >(
+        read -r result
+        echo "$result"
+    )
+}
+
+# Function to install Ngrok
+ngrok() {
+    NGROK_FILE="$PWD/script/ngrok"
+    NGROK_URL="https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip"
+
+    if [ -s "$NGROK_FILE" ]; then
+        show_message "Ngrok is already installed."
+    else
+        (
+            for ((i = 0; i <= 100; i += 20)); do
+                echo "$i"
+                sleep 0.2
+            done
+        ) | whiptail --gauge "Downloading Ngrok..." 8 50 0 &
+
+        wget -q "$NGROK_URL" -O /tmp/ngrok.zip
+
+        if ! command -v unzip &>/dev/null; then
+            sudo apt install unzip
+        fi
+        echo -e "\e[33mUnzipping...\e[0m"
+        unzip -q /tmp/ngrok.zip -d $PWD/script/
+
+        echo -e  "\e[36mEnter Ngrok Authtoken:\e[0m"
+        read AUTHTOKEN
+        if [ -n "$AUTHTOKEN" ]; then
+            "$NGROK_FILE" authtoken "$AUTHTOKEN"
+            chmod +x "$NGROK_FILE"
+            show_message "Ngrok has been configured with your Authtoken."
+        else
+            whiptail --msgbox "No Authtoken provided. Ngrok setup is incomplete." 8 50 --title "Ngrok Configuration"
+        fi
+    fi
+}
+
+# Function to install or run bpytop
+bpytop() {
+    FILE=$HOME/.local/bin/bpytop
+    if ! test -f "$FILE"; then
+        show_message "bpytop is not installed. Installing AFK app (This may take some time)..."
+        if ! test python; then
+        sudo apt intall python
+        fi
+        python3 -m pip install bpytop &>/dev/null
+    else
+        echo -e "\e[33mbpytop (AFK APP RUNNING) is already installed.\e[0m"
+    fi
+    $FILE
+}
+
+# Function to clear server logs
+clear_logs() {
+    if ! test -d $PWD/server; then
+        show_message "No Logs available!"
+        ./Minever
+    else
+        rm -r $PWD/server/Logs/*
+        show_message "Server Logs cleared!"
+    fi
+}
+

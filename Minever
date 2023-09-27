@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# Check and install dependencies
+install_dependencies() {
+    if ! command -v whiptail &>/dev/null; then
+        echo -e "\e[33mInstalling required dependencies...\e[0m"
+        sudo apt install whiptail -y >/dev/null 2>&1
+        echo -e "\e[32mDependencies Installed!\e[0m"
+    fi
+}
+install_dependencies
+
+chmod +x script/*
+
+clear
+echo -e "\e[H\e[2J"  # Clear the screen
+echo -e "\e[1m\e[33m"
+echo "   _____  .__                                  "
+echo "  /     \\ |__| ____   _______  __ ___________  "
+echo " /  \\ /  \\|  |/    \\_/ __ \\  \\/ // __ \\_  __ \\ "
+echo "/    Y    \\  |   |  \\  ___/\\   /\\  ___/|  | \\/ "
+echo "\\____|__  /__|___|  /\\___  >\\_/  \\___  >__|    "
+echo "        \\/        \\/     \\/          \\/         "
+echo -e "\e[0m"
+
+
+main_menu() {
+    choice=$(whiptail --title "Minever" --menu "Choose an action:" 15 60 6 \
+        "Start" "Server" \
+        "Stop" "Server" \
+        "Options" "Server Configuration and Tools" \
+        "Exit" "Exit Setup" 3>&1 1>&2 2>&3)
+
+    if [ $? -ne 0 ]; then
+        echo -e "\e[33mExited Setup.\e[0m"
+        exit
+    fi
+
+    case "$choice" in
+    "Start")
+        echo "Selected: START"
+        . script/start
+        start_server
+        ;;
+    "Stop")
+        echo "Selected: STOP"
+        . script/start
+        stop_server
+        ;;
+    "Options")
+        options_menu
+        ;;
+    "Exit")
+        echo "Exited Setup."
+        exit 0
+        ;;
+    *)
+        echo "Invalid choice."
+        exit 0
+        ;;
+    esac
+}
+options_menu() {
+    choice=$(whiptail --title "Minever: Options Menu" --menu "Select an action:" 15 60 6 --noitem \
+        "Install Server" ""\
+        "Server Configuration" ""\
+        "Install Ngrok" ""\
+        "Afk/Bpytop" ""\
+        "Clear Server Logs" ""\
+        "Back" "" 3>&1 1>&2 2>&3)
+
+    if [ $? -ne 0 ]; then
+        echo -e "\e[33mExited Setup.\e[0m"
+        exit
+    fi
+
+    case "$choice" in
+    "Install Server")
+        . script/control
+        install
+        ;;
+    "Server Configuration")
+        . script/config
+        config
+        ;;
+    "Install Ngrok")
+        . script/tools
+        ngrok
+        ;;
+    "Afk/Bpytop")
+        . script/tools
+        bpytop
+        ;;
+    "Clear Server Logs")
+        . script/tools
+        clear_logs
+        ;;
+    "Back")
+        main_menu
+        ;;
+    *)
+        echo "Invalid choice."
+        exit 0
+        ;;
+    esac
+}
+
+main_menu
+
