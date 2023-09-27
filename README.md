@@ -17,8 +17,6 @@ The All-in-One Minecraft Server Creation Script, Packed with Optimizations.
 
 ---
 
----
-
 # Frequently Asked Questions
 
 **1. How to Make My Server Public?**
